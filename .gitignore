@@ -5,3 +5,4 @@ Server/obj/*
 ServerTest/obj/*
 ClientTest/bin/Release/netcoreapp3.1/ClientTest.runtimeconfig.dev.json
 ServerTest/bin/Release/netcoreapp3.1/ServerTest.runtimeconfig.dev.json
+*.nupkg

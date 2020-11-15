@@ -10,11 +10,33 @@
     <PublishSingleFile>true</PublishSingleFile>
     <Version>1.0.0</Version>
     <Authors>Delareth</Authors>
+    <Description>BasicTcp provides methods for creating your own TCP-based sockets application, enabling easy integration of connection management, sending, and receiving data.</Description>
+    <RepositoryUrl>https://github.com/Delareth/BasicTcp</RepositoryUrl>
+    <PackageTags>tcp messaging socket message sockets api rpc</PackageTags>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>(c)2020 Delareth</Copyright>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageLicenseExpression></PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Delareth/BasicTcp</PackageProjectUrl>
+    <RepositoryType>Github</RepositoryType>
+    <PackageReleaseNotes>First release.</PackageReleaseNotes>
+    <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\assets\icon.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+    <None Include="..\LICENSE.md">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+  </ItemGroup>
 
 </Project>
