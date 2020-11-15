@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v3.1",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v3.1": {
+      "ClientTest/1.0.0": {
+        "dependencies": {
+          "BasicTcpClient": "1.0.0.0"
+        },
+        "runtime": {
+          "ClientTest.dll": {}
+        }
+      },
+      "BasicTcpClient/1.0.0.0": {
+        "runtime": {
+          "BasicTcpClient.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "ClientTest/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "BasicTcpClient/1.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
