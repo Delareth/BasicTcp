@@ -1,6 +1,8 @@
 # BasicTcp 1.0.0
 
 ## Basic wrapper for TCP client and server in C#
+[![NuGet Version](https://img.shields.io/nuget/v/BasicTcpClient?label=client_nuget)](https://www.nuget.org/packages/BasicTcpClient/) [![NuGet](https://img.shields.io/nuget/dt/BasicTcpClient)](https://www.nuget.org/packages/BasicTcpClient/)
+[![NuGet Version](https://img.shields.io/nuget/v/BasicTcpServer?label=server_nuget)](https://www.nuget.org/packages/BasicTcpServer/) [![NuGet](https://img.shields.io/nuget/dt/BasicTcpServer)](https://www.nuget.org/packages/BasicTcpServer/)
 
 BasicTcp provides methods for creating your own TCP-based sockets application, enabling easy integration of connection management, sending, and receiving data.  
 
