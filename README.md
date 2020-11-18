@@ -162,10 +162,11 @@ namespace ClientTest
 * If you specify ```127.0.0.1``` as the listener IP address, it will only be able to accept connections from within the local host.  
 * To accept connections from other machines:
   * Use a specific interface IP address, or
-  * Use ```null```, ```*```, ```+```, or ```0.0.0.0``` for the listener IP address (requires admin privileges to listen on any IP address)
+  * Use ```*``` or ```0.0.0.0``` for the listener IP address (requires admin privileges to listen on any IP address)
 * Make sure you create a permit rule on your firewall to allow inbound connections on that port
 * If you use a port number under 1024, admin privileges will be required
 
 ### Version History
 
 Version history provides in [CHANGELOG.md](https://github.com/Delareth/BasicTcp/blob/master/CHANGELOG.md)
+* If you use a port number under 1024, admin privileges will be required
