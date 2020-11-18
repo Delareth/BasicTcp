@@ -169,4 +169,3 @@ namespace ClientTest
 ### Version History
 
 Version history provides in [CHANGELOG.md](https://github.com/Delareth/BasicTcp/blob/master/CHANGELOG.md)
-* If you use a port number under 1024, admin privileges will be required
