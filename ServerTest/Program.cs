@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using BasicTcp;
 using BasicTcp.Events;
 
@@ -11,16 +12,27 @@ namespace ServerTest
 
     static void Main()
     {
-      Server = new BasicTcpServer("*", 10013);
+      Server = new BasicTcpServer("*", 11113);
 
       Server.Events.ClientConnected += OnClientConnected;
       Server.Events.ClientDisconnected += OnClientDisconnected;
-      Server.Events.DataReceived += OnDataRecieved;
+      Server.Events.DataReceived += OnDataReceived;
       Server.Events.ServerLog += OnServerLog;
 
       Server.Start();
 
-      Console.ReadKey();
+      ReadCmd();
+    }
+
+    public static void ReadCmd()
+    {
+      Console.WriteLine("Enter message to send to all clients");
+
+      string cmd = Console.ReadLine();
+
+      Server.SendToAllClients(cmd);
+
+      ReadCmd();
     }
 
     private static void OnServerLog(object sender, ServerLoggerEventArgs e)
@@ -36,15 +48,16 @@ namespace ServerTest
       }
     }
 
-    private static void OnDataRecieved(object sender, DataReceivedFromClientEventArgs e)
+    private static void OnDataReceived(object sender, DataReceivedFromClientEventArgs e)
     {
-      Console.WriteLine($"Recieved new data from ip: " + e.IpPort);
+      Console.WriteLine("Received new data");
+      Console.WriteLine(Encoding.UTF8.GetString(e.Data));
       Console.WriteLine("Headers:");
       foreach (KeyValuePair<string, string> entry in e.Header)
       {
         Console.WriteLine($"{entry.Key}:{entry.Value}");
       }
-      Console.WriteLine("------------");
+      Console.WriteLine($"------------");
     }
 
     private static void OnClientDisconnected(object sender, ClientDisconnectedEventArgs e)

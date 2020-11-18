@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using BasicTcp;
 using BasicTcp.Events;
 
@@ -11,11 +12,11 @@ namespace ClientTest
 
     static void Main()
     {
-      Client = new BasicTcpClient("127.0.0.1", 10013, 5000);
+      Client = new BasicTcpClient("127.0.0.1", 11113, 5000);
 
       Client.Events.Connected += OnClientConnected;
       Client.Events.Disconnected += OnClientDisconnected;
-      Client.Events.DataReceived += OnDataRecieved;
+      Client.Events.DataReceived += OnDataReceived;
       Client.Events.ClientLog += OnClientLog;
 
       Client.Start();
@@ -26,9 +27,10 @@ namespace ClientTest
     public static void ReadNewLine()
     {
       Console.WriteLine("Enter message to send to server");
-      string command = Console.ReadLine();
+      string cmd = Console.ReadLine();
 
-      Client.Send(command);
+      Client.Send(cmd);
+
       ReadNewLine();
     }
 
@@ -37,7 +39,9 @@ namespace ClientTest
       if (e.LogType == LogType.EXCEPTION)
       {
         Console.WriteLine($"[BasicTcp][{e.LogType}]: Exception message: {e.Message}");
-        Console.WriteLine($"[BasicTcp][{e.LogType}]: Exception stacktrace: {e.Exception.Message}");
+        Console.WriteLine($"[BasicTcp][{e.LogType}]: Exception Message: {e.Exception.Message}");
+        Console.WriteLine($"[BasicTcp][{e.LogType}]: Exception StackTrace: {e.Exception.StackTrace}");
+        Console.WriteLine($"[BasicTcp][{e.LogType}]: Exception: {e}");
       }
       else
       {
@@ -45,15 +49,16 @@ namespace ClientTest
       }
     }
 
-    private static void OnDataRecieved(object sender, DataReceivedEventArgs e)
+    private static void OnDataReceived(object sender, DataReceivedEventArgs e)
     {
-      Console.WriteLine($"Recieved new data");
+      Console.WriteLine("Received new data");
+      Console.WriteLine(Encoding.UTF8.GetString(e.Data));
       Console.WriteLine("Headers:");
       foreach (KeyValuePair<string, string> entry in e.Header)
       {
         Console.WriteLine($"{entry.Key}:{entry.Value}");
       }
-      Console.WriteLine("------------");
+      Console.WriteLine($"------------");
     }
 
     private static void OnClientDisconnected(object sender, EventArgs e)

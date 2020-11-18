@@ -19,12 +19,6 @@ namespace BasicTcp
     private readonly BasicTcpServer _Server;
     private readonly NetworkStream _NetworkStream;
 
-    // for data receiving
-    private bool _IsHeaderReceived = false;
-    private MemoryStream _CurrentReceivingMs = null;
-    private long _CurrentReceivingMsSize = 0;
-    private Dictionary<string, string> _Header = new Dictionary<string, string>();
-
     public bool IsConnected
     {
       get
@@ -53,53 +47,9 @@ namespace BasicTcp
 
       _NetworkStream = TcpClient.GetStream();
 
-      Task.Run(() => StartRecieveDataAsync(_Token), _Token);
+      Task.Run(() => StartReceiveData(_Token), _Token);
 
       IsConnected = true;
-    }
-
-    public void Send(string data, Dictionary<string, string> additionalHeaders = null)
-    {
-      if (string.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
-      if (!IsConnected) throw new IOException($"Not connected to the server {Ip}");
-
-      byte[] bytes = Encoding.UTF8.GetBytes(data);
-      MemoryStream ms = new MemoryStream();
-      ms.Write(bytes, 0, bytes.Length);
-      ms.Seek(0, SeekOrigin.Begin);
-
-      _SendLock.Wait();
-      SendHeader(bytes.Length, additionalHeaders);
-      SendInternal(bytes.Length, ms);
-      _SendLock.Release();
-    }
-
-    public void Send(byte[] data, Dictionary<string, string> additionalHeaders = null)
-    {
-      if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
-      if (!IsConnected) throw new IOException($"Not connected to the server {Ip}");
-
-      MemoryStream ms = new MemoryStream();
-      ms.Write(data, 0, data.Length);
-      ms.Seek(0, SeekOrigin.Begin);
-
-      _SendLock.Wait();
-      SendHeader(data.Length, additionalHeaders);
-      SendInternal(data.Length, ms);
-      _SendLock.Release();
-    }
-
-    public void Send(long contentLength, Stream stream, Dictionary<string, string> additionalHeaders = null)
-    {
-      if (contentLength < 1) return;
-      if (stream == null) throw new ArgumentNullException(nameof(stream));
-      if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
-      if (!IsConnected) throw new IOException($"Not connected to the server {Ip}");
-
-      _SendLock.Wait();
-      SendHeader(contentLength, additionalHeaders);
-      SendInternal(contentLength, stream);
-      _SendLock.Release();
     }
 
     public void Dispose()
@@ -122,50 +72,82 @@ namespace BasicTcp
       }
     }
 
-    private void SendHeader(long contentLength, Dictionary<string, string> additionalHeaders)
+    public void Send(string data, Dictionary<string, string> additionalHeaders = null)
     {
-      byte[] bytes = Encoding.UTF8.GetBytes($"Content-length:{contentLength}{Environment.NewLine}{GetAdditionalHeaders(additionalHeaders)}");
-      MemoryStream ms = new MemoryStream();
-      ms.Write(bytes, 0, bytes.Length);
-      ms.Seek(0, SeekOrigin.Begin);
+      if (string.IsNullOrEmpty(data)) throw new ArgumentNullException(nameof(data));
+      if (!IsConnected) throw new IOException($"Not connected to the server {Ip}");
 
-      SendInternal(bytes.Length, ms);
+      byte[] bytes = Encoding.UTF8.GetBytes(data);
 
-      Task.Delay(30).GetAwaiter().GetResult();
+      CreateDataAndSend(bytes, additionalHeaders);
     }
 
-    private void SendInternal(long contentLength, Stream stream)
+    public void Send(byte[] data, Dictionary<string, string> additionalHeaders = null)
     {
-      long bytesRemaining = contentLength;
-      int bytesRead;
-      byte[] buffer = new byte[1024];
+      if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+      if (!IsConnected) throw new IOException($"Not connected to the server {Ip}");
+
+      CreateDataAndSend(data, additionalHeaders);
+    }
+
+    public void Send(Stream stream, Dictionary<string, string> additionalHeaders = null)
+    {
+      if (stream == null) throw new ArgumentNullException(nameof(stream));
+      if (stream.Length < 1) throw new ArgumentException("Cannot send empty stream");
+      if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
+      if (!IsConnected) throw new IOException($"Not connected to the server {Ip}");
+
+      CreateDataAndSend(ConvertStreamToByteArray(stream), additionalHeaders);
+    }
+
+    private void CreateDataAndSend(byte[] data, Dictionary<string, string> additionalHeaders)
+    {
+      _SendLock.Wait();
+
+      byte[] header = GetHeaderBytes(data.Length, additionalHeaders);
+      byte[] headerLength = BitConverter.GetBytes(header.Length);
+      byte[] sendData = SerializeDataToSend(headerLength, header, data);
 
       try
       {
-        while (bytesRemaining > 0)
-        {
-          bytesRead = stream.Read(buffer, 0, buffer.Length);
-          if (bytesRead > 0)
-          {
-            _NetworkStream.Write(buffer, 0, bytesRead);
-
-            bytesRemaining -= bytesRead;
-          }
-        }
-
-        _NetworkStream.Flush();
+        _NetworkStream.Write(sendData, 0, sendData.Length);
       }
       catch (Exception ex)
       {
-        _Server.Events.HandleServerLog(this, new Events.ServerLoggerEventArgs(Events.LogType.EXCEPTION, "Can't send internal data for client: " + Ip, ex));
+        _Server.Events.HandleServerLog(this, new Events.ServerLoggerEventArgs(Events.LogType.EXCEPTION, "Can't send data for client: " + Ip, ex));
       }
+
+      _SendLock.Release();
     }
 
-    private async Task StartRecieveDataAsync(CancellationToken token)
+    private byte[] GetHeaderBytes(long contentLength, Dictionary<string, string> additionalHeaders)
     {
-      try
+      return Encoding.UTF8.GetBytes($"Content-length:{contentLength}{"\r\n"}{GetAdditionalHeaders(additionalHeaders)}");
+    }
+
+    private byte[] SerializeDataToSend(byte[] headerLength, byte[] headerData, byte[] data)
+    {
+      byte[] outArray = new byte[headerLength.Length + headerData.Length + data.Length];
+      Buffer.BlockCopy(headerLength, 0, outArray, 0, headerLength.Length);
+      Buffer.BlockCopy(headerData, 0, outArray, headerLength.Length, headerData.Length);
+      Buffer.BlockCopy(data, 0, outArray, headerLength.Length + headerData.Length, data.Length);
+
+      return outArray;
+    }
+
+    private byte[] ConvertStreamToByteArray(Stream input)
+    {
+      using MemoryStream memoryStream = new MemoryStream();
+
+      input.CopyTo(memoryStream);
+      return memoryStream.ToArray();
+    }
+
+    private void StartReceiveData(CancellationToken token)
+    {
+      while (true)
       {
-        while (true)
+        try
         {
           if (TcpClient == null || !TcpClient.Connected)
           {
@@ -175,95 +157,108 @@ namespace BasicTcp
             break;
           }
 
-          byte[] data = await DataReadAsync(token);
-          if (data == null)
+          if (token.IsCancellationRequested)
           {
-            await Task.Delay(30);
-            continue;
+            _Server.Events.HandleServerLog(this, new Events.ServerLoggerEventArgs(Events.LogType.ERROR, "Cancellation operation detected"));
+            break;
           }
 
-          if (!_IsHeaderReceived)
-          {
-            _Header = NormalizeRawHeader(Encoding.UTF8.GetString(data));
+          DataPacket packet = ReadPacket();
 
-            if (_Header.ContainsKey("Content-length"))
-            {
-              _IsHeaderReceived = true;
-              _CurrentReceivingMs = new MemoryStream();
-              _CurrentReceivingMsSize = Convert.ToInt64(_Header["Content-length"]);
-            }
-          }
-          else
-          {
-            _CurrentReceivingMs.Write(data);
+          if (packet == null) continue;
 
-            if (_CurrentReceivingMs.Length >= _CurrentReceivingMsSize)
-            {
-              _IsHeaderReceived = false;
-              _Server.Events.HandleDataReceived(this, new Events.DataReceivedFromClientEventArgs(Ip, _CurrentReceivingMs.ToArray(), _Header));
-
-              _CurrentReceivingMs = null;
-              _CurrentReceivingMsSize = 0;
-              _Header.Clear();
-            }
-          }
+          _Server.Events.HandleDataReceived(this, new Events.DataReceivedFromClientEventArgs(Ip, packet.Data, packet.Header));
         }
-      }
-      catch (SocketException)
-      {
-        _Server.Events.HandleServerLog(this, new Events.ServerLoggerEventArgs(Events.LogType.ERROR, "Data receiver socket exception (disconnection)"));
-        IsConnected = false;
-        _Server.DisconnectClient(Ip);
-      }
-      catch (IOException)
-      {
-        _Server.Events.HandleServerLog(this, new Events.ServerLoggerEventArgs(Events.LogType.ERROR, "Data receiver socket exception (disconnection)"));
-        IsConnected = false;
-        _Server.DisconnectClient(Ip);
-      }
-      catch (Exception ex)
-      {
-        _Server.Events.HandleServerLog(this, new Events.ServerLoggerEventArgs(Events.LogType.EXCEPTION, "Data receiver exception", ex));
+        catch (Exception ex)
+        {
+          if (ex is SocketException || ex is IOException)
+          {
+            _Server.Events.HandleServerLog(this, new Events.ServerLoggerEventArgs(Events.LogType.ERROR, "Data receiver socket exception (disconnection)"));
+            IsConnected = false;
+            _Server.DisconnectClient(Ip);
+            return;
+          }
+
+          _Server.Events.HandleServerLog(this, new Events.ServerLoggerEventArgs(Events.LogType.EXCEPTION, "Data receiver exception", ex));
+        }
       }
     }
 
-    private async Task<byte[]> DataReadAsync(CancellationToken token)
+    private DataPacket ReadPacket()
     {
-      if (TcpClient == null || !TcpClient.Connected || token.IsCancellationRequested) throw new OperationCanceledException();
+      int headerLength = ReceiveBytes<int>(sizeof(int));
 
+      Dictionary<string, string> header = ReceiveBytes<Dictionary<string, string>>(headerLength);
+
+      byte[] data = ReceiveBytes<byte[]>(Convert.ToInt32(header["Content-length"]));
+
+      return new DataPacket(header, data);
+    }
+
+    private T ReceiveBytes<T>(int contentLength)
+    {
       if (!_NetworkStream.CanRead) throw new IOException();
 
-      byte[] buffer = new byte[1024];
-      int read;
+      int read = 0;
+      byte[] buffer = new byte[contentLength];
 
-      using MemoryStream ms = new MemoryStream();
-      while (true)
+      while (read < contentLength)
       {
-        read = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length);
+        int readedFromStream = _NetworkStream.Read(buffer, read, buffer.Length - read);
 
-        if (read > 0)
-        {
-          ms.Write(buffer, 0, read);
-          return ms.ToArray();
-        }
-        else
-        {
-          throw new SocketException();
-        }
+        if (readedFromStream <= 0) throw new SocketException();
+
+        read += readedFromStream;
       }
+
+      return ConvertDataToType<T>(buffer);
+    }
+
+    private T ConvertDataToType<T>(byte[] data)
+    {
+      if (typeof(T) == typeof(int))
+      {
+        return (T)Convert.ChangeType(BitConverter.ToInt32(data), typeof(T));
+      }
+      else if (typeof(T) == typeof(Dictionary<string, string>))
+      {
+        string rawHeader = Encoding.UTF8.GetString(data);
+
+        Dictionary<string, string> header = NormalizeRawHeader(rawHeader);
+
+        return (T)Convert.ChangeType(header, typeof(T));
+      }
+      else if (typeof(T) == typeof(byte[]))
+      {
+        return (T)Convert.ChangeType(data, typeof(T));
+      }
+
+      return ConvertDataToUnknownType<T>(data);
+    }
+
+    /// <summary>
+    /// Override this if you need more types to convert after receiving data.
+    /// </summary>
+    public T ConvertDataToUnknownType<T>(byte[] data)
+    {
+      throw new Exception("Incompatible receiver type");
     }
 
     private Dictionary<string, string> NormalizeRawHeader(string rawHeader)
     {
-      string[] headerLines = rawHeader.Split(Environment.NewLine);
+      string[] headerLines = rawHeader.Split("\r\n");
 
       Dictionary<string, string> header = new Dictionary<string, string>();
+
+      if (headerLines.Length == 0) return header;
 
       foreach (string line in headerLines)
       {
         if (string.IsNullOrEmpty(line)) continue;
 
         string[] lineInfo = line.Split(":");
+
+        if (lineInfo.Length != 2) continue;
 
         if (header.ContainsKey(lineInfo[0])) continue;
 
@@ -282,7 +277,7 @@ namespace BasicTcp
 
         foreach (KeyValuePair<string, string> entry in additionalHeaders)
         {
-          headers += $"{entry.Key}:{entry.Value}{Environment.NewLine}";
+          headers += $"{entry.Key}:{entry.Value}{"\r\n"}";
         }
 
         return headers;

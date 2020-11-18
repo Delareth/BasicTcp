@@ -64,6 +64,9 @@ namespace BasicTcp
       _Token = _TokenSource.Token;
     }
 
+    /// <summary>
+    /// Start receiving connections to server.
+    /// </summary>
     public void Start()
     {
       if (IsListening) throw new InvalidOperationException("TcpServer already running");
@@ -77,6 +80,9 @@ namespace BasicTcp
       IsListening = true;
     }
 
+    /// <summary>
+    /// Disconnect all clients and stop server.
+    /// </summary>
     public void Stop()
     {
       if (!IsListening) throw new InvalidOperationException("TcpServer is not running");
@@ -181,7 +187,7 @@ namespace BasicTcp
       }
     }
 
-    public bool SendToClient(string ipPort, long contentLength, Stream stream, Dictionary<string, string> additionalHeaders = null)
+    public bool SendToClient(string ipPort, Stream stream, Dictionary<string, string> additionalHeaders = null)
     {
       if (!_Clients.ContainsKey(ipPort))
       {
@@ -193,7 +199,7 @@ namespace BasicTcp
       {
         try
         {
-          client.Send(contentLength, stream, additionalHeaders);
+          client.Send(stream, additionalHeaders);
 
           return true;
         }
@@ -209,27 +215,27 @@ namespace BasicTcp
       }
     }
 
-    public void SendToAllClients(string data)
+    public void SendToAllClients(string data, Dictionary<string, string> additionalHeaders = null)
     {
       foreach (string ip in GetClients())
       {
-        SendToClient(ip, data);
+        SendToClient(ip, data, additionalHeaders);
       }
     }
 
-    public void SendToAllClients(byte[] data)
+    public void SendToAllClients(byte[] data, Dictionary<string, string> additionalHeaders = null)
     {
       foreach (string ip in GetClients())
       {
-        SendToClient(ip, data);
+        SendToClient(ip, data, additionalHeaders);
       }
     }
 
-    public void SendToAllClients(long contentLength, Stream stream)
+    public void SendToAllClients(Stream stream, Dictionary<string, string> additionalHeaders = null)
     {
       foreach (string ip in GetClients())
       {
-        SendToClient(ip, contentLength, stream);
+        SendToClient(ip, stream, additionalHeaders);
       }
     }
 

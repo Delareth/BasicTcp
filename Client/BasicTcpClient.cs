@@ -24,17 +24,12 @@ namespace BasicTcp
     private ClientEvents _Events = new ClientEvents();
 
     private bool _IsInitialized = false;
+    private bool _IsDisposed = false;
 
     private readonly uint _AutoReconnectTime = 0;
     private readonly int _Port = 0;
 
     private readonly IPAddress _IPAddress = null;
-
-    // for data receiving
-    private bool _IsHeaderReceived = false;
-    private MemoryStream _CurrentReceivingMs = null;
-    private long _CurrentReceivingMsSize = 0;
-    private Dictionary<string, string> _Header = new Dictionary<string, string>();
 
     public ClientEvents Events
     {
@@ -76,7 +71,7 @@ namespace BasicTcp
     }
 
     /// <summary>
-    /// Initializing tcp client
+    /// Initializing TCP client.
     /// </summary>
     /// <param name="autoReconnectTime">Time to reconnect to server in MS. Disabled if set to 0.</param>
     public BasicTcpClient(string ip, int port, uint autoReconnectTime = 0)
@@ -111,6 +106,9 @@ namespace BasicTcp
       }
     }
 
+    /// <summary>
+    /// Start connection to server.
+    /// </summary>
     public void Start()
     {
       if (Timers.IsTimerExist("AutoReconnect")) return;
@@ -131,6 +129,12 @@ namespace BasicTcp
           throw new TimeoutException("Timeout connecting to " + _IPAddress + ":" + _Port);
         }
 
+        if (!_Client.Connected)
+        {
+          Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.ERROR, $"Timeout connecting to {_IPAddress}:{_Port}"));
+          throw new TimeoutException("Timeout connecting to " + _IPAddress + ":" + _Port);
+        }
+
         _Client.EndConnect(ar);
         _NetworkStream = _Client.GetStream();
 
@@ -147,6 +151,9 @@ namespace BasicTcp
       }
     }
 
+    /// <summary>
+    /// Stop client.
+    /// </summary>
     public void Stop()
     {
       if (!IsConnected) throw new InvalidOperationException("TcpClient is not running");
@@ -193,6 +200,7 @@ namespace BasicTcp
         Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.EXCEPTION, "Can't dispose client", ex));
       }
 
+      _IsDisposed = true;
       IsConnected = false;
       _IsInitialized = false;
       GC.SuppressFinalize(this);
@@ -204,14 +212,8 @@ namespace BasicTcp
       if (!_IsConnected) throw new IOException("Client not connected to server.");
 
       byte[] bytes = Encoding.UTF8.GetBytes(data);
-      MemoryStream ms = new MemoryStream();
-      ms.Write(bytes, 0, bytes.Length);
-      ms.Seek(0, SeekOrigin.Begin);
 
-      _SendLock.Wait();
-      SendHeader(bytes.Length, additionalHeaders);
-      SendInternal(bytes.Length, ms);
-      _SendLock.Release();
+      CreateDataAndSend(bytes, additionalHeaders);
     }
 
     public void Send(byte[] data, Dictionary<string, string> additionalHeaders = null)
@@ -219,87 +221,67 @@ namespace BasicTcp
       if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
       if (!_IsConnected) throw new IOException("Client not connected to server.");
 
-      MemoryStream ms = new MemoryStream();
-      ms.Write(data, 0, data.Length);
-      ms.Seek(0, SeekOrigin.Begin);
-
-      _SendLock.Wait();
-      SendHeader(data.Length, additionalHeaders);
-      SendInternal(data.Length, ms);
-      _SendLock.Release();
+      CreateDataAndSend(data, additionalHeaders);
     }
 
-    public void Send(long contentLength, Stream stream, Dictionary<string, string> additionalHeaders = null)
+    public void Send(Stream stream, Dictionary<string, string> additionalHeaders = null)
     {
-      if (contentLength < 1) return;
       if (stream == null) throw new ArgumentNullException(nameof(stream));
+      if (stream.Length < 1) throw new ArgumentException("Cannot send empty stream");
       if (!stream.CanRead) throw new InvalidOperationException("Cannot read from supplied stream.");
       if (!_IsConnected) throw new IOException("Client not connected to server.");
 
+      CreateDataAndSend(ConvertStreamToByteArray(stream), additionalHeaders);
+    }
+
+    private void CreateDataAndSend(byte[] data, Dictionary<string, string> additionalHeaders)
+    {
       _SendLock.Wait();
-      SendHeader(contentLength, additionalHeaders);
-      SendInternal(contentLength, stream);
-      _SendLock.Release();
-    }
 
-    private void SendHeader(long contentLength, Dictionary<string, string> additionalHeaders)
-    {
-      byte[] bytes;
-
-      if (additionalHeaders == null) bytes = Encoding.UTF8.GetBytes($"Content-length:{contentLength}{Environment.NewLine}");
-      else
-      {
-        string headers = "";
-
-        foreach (KeyValuePair<string, string> entry in additionalHeaders)
-        {
-          headers += $"{entry.Key}:{entry.Value}{Environment.NewLine}";
-        }
-
-        bytes = Encoding.UTF8.GetBytes($"Content-length:{contentLength}{Environment.NewLine}{headers}");
-      }
-
-      MemoryStream ms = new MemoryStream();
-      ms.Write(bytes, 0, bytes.Length);
-      ms.Seek(0, SeekOrigin.Begin);
-
-      SendInternal(bytes.Length, ms);
-
-      Task.Delay(30).GetAwaiter().GetResult();
-    }
-
-    private void SendInternal(long contentLength, Stream stream)
-    {
-      long bytesRemaining = contentLength;
-      int bytesRead;
-      byte[] buffer = new byte[1024];
+      byte[] header = GetHeaderBytes(data.Length, additionalHeaders);
+      byte[] headerLength = BitConverter.GetBytes(header.Length);
+      byte[] sendData = SerializeDataToSend(headerLength, header, data);
 
       try
       {
-        while (bytesRemaining > 0)
-        {
-          bytesRead = stream.Read(buffer, 0, buffer.Length);
-          if (bytesRead > 0)
-          {
-            _NetworkStream.Write(buffer, 0, bytesRead);
-
-            bytesRemaining -= bytesRead;
-          }
-        }
-
-        _NetworkStream.Flush();
+        _NetworkStream.Write(sendData, 0, sendData.Length);
       }
       catch (Exception ex)
       {
-        Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.EXCEPTION, "Can't send internal data for server", ex));
+        Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.EXCEPTION, "Can't send data to server", ex));
       }
+
+      _SendLock.Release();
     }
 
-    private async Task StartRecieveDataAsync(CancellationToken token)
+    private byte[] GetHeaderBytes(long contentLength, Dictionary<string, string> additionalHeaders)
     {
-      try
+      return Encoding.UTF8.GetBytes($"Content-length:{contentLength}{"\r\n"}{GetAdditionalHeaders(additionalHeaders)}");
+    }
+
+    private byte[] SerializeDataToSend(byte[] headerLength, byte[] headerData, byte[] data)
+    {
+      byte[] outArray = new byte[headerLength.Length + headerData.Length + data.Length];
+      Buffer.BlockCopy(headerLength, 0, outArray, 0, headerLength.Length);
+      Buffer.BlockCopy(headerData, 0, outArray, headerLength.Length, headerData.Length);
+      Buffer.BlockCopy(data, 0, outArray, headerLength.Length + headerData.Length, data.Length);
+
+      return outArray;
+    }
+
+    private byte[] ConvertStreamToByteArray(Stream input)
+    {
+      using MemoryStream memoryStream = new MemoryStream();
+
+      input.CopyTo(memoryStream);
+      return memoryStream.ToArray();
+    }
+
+    private void StartReceiveData(CancellationToken token)
+    {
+      while (true)
       {
-        while (true)
+        try
         {
           if (_Client == null || !_Client.Connected)
           {
@@ -308,86 +290,101 @@ namespace BasicTcp
             break;
           }
 
-          byte[] data = await DataReadAsync(token);
-          if (data == null)
+          if (token.IsCancellationRequested)
           {
-            await Task.Delay(30);
-            continue;
+            Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.ERROR, "Cancellation operation detected"));
+            break;
           }
 
-          if (!_IsHeaderReceived)
-          {
-            _Header = NormalizeRawHeader(Encoding.UTF8.GetString(data));
+          DataPacket packet = ReadPacket();
 
-            if (_Header.ContainsKey("Content-length"))
-            {
-              _IsHeaderReceived = true;
-              _CurrentReceivingMs = new MemoryStream();
-              _CurrentReceivingMsSize = Convert.ToInt64(_Header["Content-length"]);
-            }
-          }
-          else
-          {
-            _CurrentReceivingMs.Write(data);
+          if (packet == null) continue;
 
-            if (_CurrentReceivingMs.Length >= _CurrentReceivingMsSize)
-            {
-              _IsHeaderReceived = false;
-              Events.HandleDataReceived(this, new DataReceivedEventArgs(_CurrentReceivingMs.ToArray(), _Header));
-
-              _CurrentReceivingMs = null;
-              _CurrentReceivingMsSize = 0;
-              _Header.Clear();
-            }
-          }
+          Events.HandleDataReceived(this, new DataReceivedEventArgs(packet.Data, packet.Header));
         }
-      }
-      catch (SocketException)
-      {
-        Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.ERROR, "Data receiver socket exception (disconnection)"));
-        IsConnected = false;
-      }
-      catch (IOException)
-      {
-        Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.ERROR, "Data receiver io exception (disconnection)"));
-        _Client.Close();
-        _IsInitialized = false;
-        IsConnected = false;
-      }
-      catch (Exception ex)
-      {
-        Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.EXCEPTION, "Data receiver exception", ex));
+        catch (SocketException)
+        {
+          Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.ERROR, "Data receiver socket exception (disconnection)"));
+          IsConnected = false;
+        }
+        catch (IOException)
+        {
+          Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.ERROR, "Data receiver io exception (disconnection)"));
+          _Client.Close();
+          _IsInitialized = false;
+          IsConnected = false;
+        }
+        catch (Exception ex)
+        {
+          Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.EXCEPTION, "Data receiver exception", ex));
+        }
       }
     }
 
-    private async Task<byte[]> DataReadAsync(CancellationToken token)
+    private DataPacket ReadPacket()
     {
-      if (_Client == null || !_Client.Connected || token.IsCancellationRequested) throw new OperationCanceledException();
+      int headerLength = ReceiveBytes<int>(sizeof(int));
 
+      Dictionary<string, string> header = ReceiveBytes<Dictionary<string, string>>(headerLength);
+
+      byte[] data = ReceiveBytes<byte[]>(Convert.ToInt32(header["Content-length"]));
+
+      return new DataPacket(header, data);
+    }
+
+    private T ReceiveBytes<T>(int contentLength)
+    {
       if (!_NetworkStream.CanRead) throw new IOException();
 
-      byte[] buffer = new byte[1024];
-      int read;
+      int read = 0;
+      byte[] buffer = new byte[contentLength];
 
-      using MemoryStream ms = new MemoryStream();
-      while (true)
+      while (read < contentLength)
       {
-        read = await _NetworkStream.ReadAsync(buffer, 0, buffer.Length);
+        int readedFromStream = _NetworkStream.Read(buffer, read, buffer.Length - read);
 
-        if (read > 0)
-        {
-          ms.Write(buffer, 0, read);
-          return ms.ToArray();
-        }
-        else
-        {
-          throw new SocketException();
-        }
+        if (readedFromStream <= 0) throw new SocketException();
+
+        read += readedFromStream;
       }
+
+      return ConvertDataToType<T>(buffer);
+    }
+
+    private T ConvertDataToType<T>(byte[] data)
+    {
+      if (typeof(T) == typeof(int))
+      {
+        return (T)Convert.ChangeType(BitConverter.ToInt32(data), typeof(T));
+      }
+      else if (typeof(T) == typeof(Dictionary<string, string>))
+      {
+        string rawHeader = Encoding.UTF8.GetString(data);
+
+        Dictionary<string, string> header = NormalizeRawHeader(rawHeader);
+
+        return (T)Convert.ChangeType(header, typeof(T));
+      }
+      else if (typeof(T) == typeof(byte[]))
+      {
+        return (T)Convert.ChangeType(data, typeof(T));
+      }
+
+      return ConvertDataToUnknownType<T>(data);
+    }
+
+    /// <summary>
+    /// Override this if you need more types to convert after receiving data.
+    /// </summary>
+    public T ConvertDataToUnknownType<T>(byte[] data)
+    {
+      throw new Exception("Incompatible receiver type");
     }
 
     private void StartAutoReconnect()
     {
+      if (_IsDisposed) return;
+
       Timers.Create("AutoReconnect", _AutoReconnectTime, false, () =>
       {
         if (_Client != null && _Client.Connected) return;
@@ -421,7 +418,12 @@ namespace BasicTcp
           {
             _Client.Connect(_IPAddress, _Port);
 
-            if (_Client.Connected) StartWithoutChecks();
+            if (_Client.Connected)
+            {
+              _NetworkStream = _Client.GetStream();
+
+              StartWithoutChecks();
+            }
           }
           catch (Exception ex)
           {
@@ -437,7 +439,7 @@ namespace BasicTcp
       _TokenSource = new CancellationTokenSource();
       _Token = _TokenSource.Token;
 
-      Task.Run(() => StartRecieveDataAsync(_Token), _Token);
+      Task.Run(() => StartReceiveData(_Token), _Token);
 
       IsConnected = true;
       Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.TCP, "Client successful connected to server"));
@@ -445,9 +447,11 @@ namespace BasicTcp
 
     private Dictionary<string, string> NormalizeRawHeader(string rawHeader)
     {
-      string[] headerLines = rawHeader.Split(Environment.NewLine);
+      string[] headerLines = rawHeader.Split("\r\n");
 
       Dictionary<string, string> header = new Dictionary<string, string>();
+
+      if (headerLines.Length == 0) return header;
 
       foreach (string line in headerLines)
       {
@@ -455,12 +459,30 @@ namespace BasicTcp
 
         string[] lineInfo = line.Split(":");
 
+        if (lineInfo.Length != 2) continue;
+
         if (header.ContainsKey(lineInfo[0])) continue;
 
         header.Add(lineInfo[0], lineInfo[1]);
       }
 
       return header;
+    }
+
+    private string GetAdditionalHeaders(Dictionary<string, string> additionalHeaders)
+    {
+      if (additionalHeaders == null) return "";
+      else
+      {
+        string headers = "";
+
+        foreach (KeyValuePair<string, string> entry in additionalHeaders)
+        {
+          headers += $"{entry.Key}:{entry.Value}{"\r\n"}";
+        }
+
+        return headers;
+      }
     }
   }
 }

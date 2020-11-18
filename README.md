@@ -31,7 +31,7 @@ namespace ServerTest
 
       Server.Events.ClientConnected += OnClientConnected;
       Server.Events.ClientDisconnected += OnClientDisconnected;
-      Server.Events.DataReceived += OnDataRecieved;
+      Server.Events.DataReceived += OnDataReceived;
       Server.Events.ServerLog += OnServerLog;
 
       Server.Start();
@@ -52,9 +52,9 @@ namespace ServerTest
       }
     }
 
-    private static void OnDataRecieved(object sender, DataReceivedFromClientEventArgs e)
+    private static void OnDataReceived(object sender, DataReceivedFromClientEventArgs e)
     {
-      Console.WriteLine($"Recieved new data from ip: " + e.IpPort);
+      Console.WriteLine($"Received new data from ip: " + e.IpPort);
       Console.WriteLine("Headers:");
       foreach (KeyValuePair<string, string> entry in e.Header)
       {
@@ -97,7 +97,7 @@ namespace ClientTest
 
       Client.Events.Connected += OnClientConnected;
       Client.Events.Disconnected += OnClientDisconnected;
-      Client.Events.DataReceived += OnDataRecieved;
+      Client.Events.DataReceived += OnDataReceived;
       Client.Events.ClientLog += OnClientLog;
 
       Client.Start();
@@ -127,9 +127,9 @@ namespace ClientTest
       }
     }
 
-    private static void OnDataRecieved(object sender, DataReceivedEventArgs e)
+    private static void OnDataReceived(object sender, DataReceivedEventArgs e)
     {
-      Console.WriteLine($"Recieved new data");
+      Console.WriteLine($"Received new data");
       Console.WriteLine("Headers:");
       foreach (KeyValuePair<string, string> entry in e.Header)
       {
@@ -165,3 +165,7 @@ namespace ClientTest
   * Use ```null```, ```*```, ```+```, or ```0.0.0.0``` for the listener IP address (requires admin privileges to listen on any IP address)
 * Make sure you create a permit rule on your firewall to allow inbound connections on that port
 * If you use a port number under 1024, admin privileges will be required
+
+### Version History
+
+Version history provides in [CHANGELOG.md](https://github.com/Delareth/BasicTcp/blob/master/CHANGELOG.md)

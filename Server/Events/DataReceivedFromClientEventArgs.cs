@@ -23,7 +23,7 @@ namespace BasicTcp.Events
     public byte[] Data { get; }
 
     /// <summary>
-    /// Header with values recieved from the client.
+    /// Header with values received from the client.
     /// </summary>
     public Dictionary<string, string> Header { get; }
   }
