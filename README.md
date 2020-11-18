@@ -1,4 +1,4 @@
-# BasicTcp 1.0.0
+# BasicTcp 2.0.0
 
 ## Basic wrapper for TCP client and server in C#
 [![NuGet Version](https://img.shields.io/nuget/v/BasicTcpClient?label=client_nuget)](https://www.nuget.org/packages/BasicTcpClient/) [![NuGet](https://img.shields.io/nuget/dt/BasicTcpClient)](https://www.nuget.org/packages/BasicTcpClient/)
