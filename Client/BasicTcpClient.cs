@@ -283,10 +283,10 @@ namespace BasicTcp
       {
         try
         {
-          if (_Client == null || !_Client.Connected)
+          if (_Client == null || !_Client.Connected || !_IsConnected)
           {
             Events.HandleClientLog(this, new ClientLoggerEventArgs(LogType.ERROR, "Disconnection detected"));
-            _IsConnected = false;
+            IsConnected = false;
             break;
           }
 
@@ -387,7 +387,7 @@ namespace BasicTcp
 
       Timers.Create("AutoReconnect", _AutoReconnectTime, false, () =>
       {
-        if (_Client != null && _Client.Connected) return;
+        if (_IsConnected) return;
 
         if (!_IsInitialized)
         {
@@ -416,6 +416,12 @@ namespace BasicTcp
         {
           try
           {
+            if (_Client == null)
+            {
+              _IsInitialized = false;
+              return;
+            }
+
             _Client.Connect(_IPAddress, _Port);
 
             if (_Client.Connected)

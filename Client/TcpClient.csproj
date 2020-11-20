@@ -8,7 +8,7 @@
     <PublishTrimmed>true</PublishTrimmed>
     <PublishReadyToRun>true</PublishReadyToRun>
     <PublishSingleFile>true</PublishSingleFile>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
     <Authors>Delareth</Authors>
     <Description>BasicTcp provides methods for creating your own TCP-based sockets application, enabling easy integration of connection management, sending, and receiving data.</Description>
     <Copyright>(c)2020 Delareth</Copyright>

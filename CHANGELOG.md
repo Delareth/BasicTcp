@@ -1,5 +1,8 @@
 # Change Log
 
+## v2.0.1 client
+- Fixed client disconnection (not break while on ReceivePacket);
+
 ## v2.0.0
 - Fixed headers separator;
 - Fixed initializing connection after first unsuccess connect;
