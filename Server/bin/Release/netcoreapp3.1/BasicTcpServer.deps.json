@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v3.1": {
-      "BasicTcpServer/2.0.0": {
+      "BasicTcpServer/2.0.1": {
         "runtime": {
           "BasicTcpServer.dll": {}
         }
@@ -14,7 +14,7 @@
     }
   },
   "libraries": {
-    "BasicTcpServer/2.0.0": {
+    "BasicTcpServer/2.0.1": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

@@ -31,13 +31,15 @@ namespace BasicTcp
       }
     }
 
+    public TcpSettings TcpSettings { get; }
+
     public bool IsListening { get; private set; } = false;
 
     /// <summary>
     /// Initializing server.
     /// </summary>
     /// <param name="ip">If ip null or empty, it will using loopback address. If ip setting as *, it will use any address in network.</param>
-    public BasicTcpServer(string ip, int port)
+    public BasicTcpServer(string ip, int port, TcpSettings tcpSettings = null)
     {
       IPAddress _IPAddress;
 
@@ -57,9 +59,16 @@ namespace BasicTcp
         }
       }
 
+      if (tcpSettings == null)
+      {
+        TcpSettings = new TcpSettings(600000, 600000);
+      }
+
       _Listener = new TcpListener(_IPAddress, port);
-      _Listener.Server.SendTimeout = 600000;
-      _Listener.Server.ReceiveTimeout = 600000;
+      _Listener.Server.SendTimeout = TcpSettings.SendTimeout;
+      _Listener.Server.ReceiveTimeout = TcpSettings.ReceiveTimeout;
+
+      TcpSettings.Socket = _Listener.Server;
 
       _Token = _TokenSource.Token;
     }
@@ -272,6 +281,37 @@ namespace BasicTcp
 
       IsListening = false;
       GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Force check is client connected, sometimes it can help because client timeout could be delayed.
+    /// </summary>
+    public bool ForceIsClientConnected(string ipPort)
+    {
+      if (!_Clients.ContainsKey(ipPort)) return false;
+
+      TcpClient client = _Clients[ipPort].TcpClient;
+
+      return ForceIsClientConnected(client);
+    }
+
+    /// <summary>
+    /// Force check is client connected, sometimes it can help because client timeout could be delayed.
+    /// </summary>
+    public bool ForceIsClientConnected(TcpClient client)
+    {
+      if (client == null) return false;
+      if (client.Client == null) return false;
+      if (!client.Connected) return false;
+
+      if (client.Client.Poll(0, SelectMode.SelectRead))
+      {
+        byte[] buff = new byte[1];
+
+        return !(client.Client.Receive(buff, SocketFlags.Peek) == 0);
+      }
+
+      return true;
     }
 
     private void MonitorForNewClients()

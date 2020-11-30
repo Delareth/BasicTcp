@@ -1,7 +1,13 @@
 # Change Log
 
+## v2.0.1 server
+- Added TcpSettings;
+- Added ForceIsClientConnected;
+
 ## v2.0.1 client
 - Fixed client disconnection (not break while on ReceivePacket);
+- Added TcpSettings;
+- Fixed _Client.Connected on autoreconnect;
 
 ## v2.0.0
 - Fixed headers separator;

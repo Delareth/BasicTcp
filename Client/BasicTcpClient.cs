@@ -70,11 +70,13 @@ namespace BasicTcp
       }
     }
 
+    public TcpSettings TcpSettings { get; }
+
     /// <summary>
     /// Initializing TCP client.
     /// </summary>
     /// <param name="autoReconnectTime">Time to reconnect to server in MS. Disabled if set to 0.</param>
-    public BasicTcpClient(string ip, int port, uint autoReconnectTime = 0)
+    public BasicTcpClient(string ip, int port, uint autoReconnectTime = 0, TcpSettings tcpSettings = null)
     {
       if (string.IsNullOrEmpty(ip)) throw new ArgumentNullException(nameof(ip));
       if (port < 0) throw new ArgumentException("Port must be zero or greater.");
@@ -90,12 +92,19 @@ namespace BasicTcp
 
         _Port = port;
 
+        if (tcpSettings == null)
+        {
+          TcpSettings = new TcpSettings(600000, 600000);
+        }
+
         _Client = new TcpClient
         {
-          ReceiveTimeout = 600000,
-          SendTimeout = 600000
+          ReceiveTimeout = TcpSettings.ReceiveTimeout,
+          SendTimeout = TcpSettings.SendTimeout
         };
         _Token = _TokenSource.Token;
+
+        TcpSettings.TcpClient = _Client;
 
         _IsInitialized = true;
       }
@@ -389,18 +398,27 @@ namespace BasicTcp
       {
         if (_IsConnected) return;
 
+        // if somehow autoreconnect called under _Client.Connected
+        if (_Client.Connected)
+        {
+          _Client.Close();
+          _IsInitialized = false;
+        }
+
         if (!_IsInitialized)
         {
           try
           {
             _Client = new TcpClient(_IPAddress.ToString(), _Port)
             {
-              SendTimeout = 600000,
-              ReceiveTimeout = 600000
+              SendTimeout = TcpSettings.SendTimeout,
+              ReceiveTimeout = TcpSettings.ReceiveTimeout
             };
 
             _NetworkStream = _Client.GetStream();
             _Token = _TokenSource.Token;
+
+            TcpSettings.TcpClient = _Client;
 
             _IsInitialized = true;
 
