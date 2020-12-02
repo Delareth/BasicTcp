@@ -239,7 +239,7 @@ namespace BasicTcp
     /// <summary>
     /// Override this if you need more types to convert after receiving data.
     /// </summary>
-    public T ConvertDataToUnknownType<T>(byte[] data)
+    public virtual T ConvertDataToUnknownType<T>(byte[] data)
     {
       throw new Exception("Incompatible receiver type");
     }

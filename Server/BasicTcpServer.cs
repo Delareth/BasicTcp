@@ -59,7 +59,9 @@ namespace BasicTcp
         }
       }
 
-      if (tcpSettings == null)
+      TcpSettings = tcpSettings;
+
+      if (TcpSettings == null)
       {
         TcpSettings = new TcpSettings(600000, 600000);
       }

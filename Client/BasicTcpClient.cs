@@ -92,7 +92,9 @@ namespace BasicTcp
 
         _Port = port;
 
-        if (tcpSettings == null)
+        TcpSettings = tcpSettings;
+
+        if (TcpSettings == null)
         {
           TcpSettings = new TcpSettings(600000, 600000);
         }
@@ -385,7 +387,7 @@ namespace BasicTcp
     /// <summary>
     /// Override this if you need more types to convert after receiving data.
     /// </summary>
-    public T ConvertDataToUnknownType<T>(byte[] data)
+    public virtual T ConvertDataToUnknownType<T>(byte[] data)
     {
       throw new Exception("Incompatible receiver type");
     }
