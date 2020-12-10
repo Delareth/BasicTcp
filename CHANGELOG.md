@@ -1,5 +1,8 @@
 # Change Log
 
+## v2.0.3
+- Fixed TcpSettings setup...;
+
 ## v2.0.2
 - Fixed TcpSettings setup;
 - Fixed ConvertDataToUnknownType due to cant override function;

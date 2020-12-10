@@ -53,8 +53,8 @@ namespace BasicTcp
       if (sendTimeout < 1) throw new ArgumentOutOfRangeException("SendTimeout must be greater than one");
       if (receiveTimeout < 1) throw new ArgumentOutOfRangeException("ReceiveTimeout must be greater than one");
 
-      SendTimeout = sendTimeout;
-      ReceiveTimeout = receiveTimeout;
+      _SendTimeout = sendTimeout;
+      _ReceiveTimeout = receiveTimeout;
     }
   }
 }
